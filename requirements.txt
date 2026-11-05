@@ -1,0 +1,12 @@
+numpy
+opencv-python
+scikit-image
+scikit-learn
+joblib
+Pillow>=10.0
+fonttools
+torch
+matplotlib
+jiwer>=3.0
+pyyaml
+scipy

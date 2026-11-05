@@ -1,0 +1,13 @@
+# environment and caches
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+
+# photos, datasets, trained models and outputs stay local
+data/
+models/
+results/
+fonts/
+*.zip
+*.pth
+*.joblib

@@ -1,0 +1,79 @@
+seed: 42
+img_height: 32
+char_size: 32
+
+split:
+  train: 0.7          # by photo_id; the rest is test and is never used for training or tuning
+
+paths:
+  photos: data/photos
+  labelstudio: data/labelstudio.json
+  crops: data/crops
+  public: data/public
+  fonts: fonts               # with kannada/ and english/ subfolders
+  rendered: data/rendered     # unzipped output of render_chars.py
+  models: models
+  results: results
+
+charset_coverage: 0.97   # build_charset.py keeps the most frequent aksharas covering this share of occurrences
+
+charsets:
+  english: charsets/english.txt
+  kannada: charsets/kannada.txt
+
+# the code points the CRNN (model D) can output; kannada_alphabet.txt is written by build_charset.py
+crnn_alphabets:
+  english: charsets/english.txt
+  kannada: charsets/kannada_alphabet.txt
+
+metrics:
+  iou_threshold: 0.5
+  bootstrap_samples: 1000
+  ci_level: 0.95
+
+# where the public datasets go; see README. Edit these if your folder names differ.
+public:
+  kannada_synth:
+    train: {images: data/public/kannada_synth/images, gt: data/public/kannada_synth/train_gt.txt}
+    test: {images: data/public/kannada_synth/images, gt: data/public/kannada_synth/test_gt.txt}
+    vocabulary: data/public/kannada_synth/vocabulary.txt
+  indicstr12_kannada:   # the gt lines read "images/<name>.jpeg<TAB>text", so images points at the split folder
+    train: {images: data/public/indicstr12_kannada/train, gt: data/public/indicstr12_kannada/train/train_gt.txt}
+    test: {images: data/public/indicstr12_kannada/test, gt: data/public/indicstr12_kannada/test/test_gt.txt}
+  mjsynth:
+    root: data/public/mjsynth/90kDICT32px
+    train: annotation_train.txt   # written by mjsynth_subset.py; MJSynth is only used for training
+  iiit5k:
+    root: data/public/IIIT5K
+  chars74k_english: data/public/chars74k/English/Img/GoodImg/Bmp
+  chars74k_kannada: data/public/chars74k/Kannada/Img/GoodImg/Bmp
+  chars74k_kannada_map: data/public/chars74k/kannada_classes.tsv
+
+render:
+  per_class: 100      # rendered images per class, spread over the fonts that have the glyphs
+
+# the same segmenter and settings are used for both scripts
+segment:
+  noise_frac: 0.002   # components smaller than this * crop_height^2 pixels are dropped
+  min_overlap: 0.5    # merge two components if their x-ranges overlap by this share of the narrower one
+  wide_ratio: 1.5     # split a component wider than this * median component height
+  split_margin: 0.2   # never cut within this share of either edge
+
+# A, B and C are trained on the same characters: at most this many per class, same seed, same
+# held-out tenth for validation (classical.py and train_cnn.ipynb print a fingerprint to check)
+char_per_class: 30
+
+classical:
+  svm_c: 10
+  rf_trees: 50               # every tree node stores one value per class, so 200 full-depth trees
+  rf_min_samples_leaf: 5     # would need several GB with the Kannada classes
+
+train:
+  batch_size: 64
+  lr: 0.001
+  finetune_lr: 0.0003
+  max_epochs: 50
+  patience: 5               # early stopping on validation loss
+  crnn_max_width: 512
+  pretrain_val: 0.05        # share of the public pre-training words held out for validation
+  finetune_val: 0.15        # share of my train-split photos held out for validation while fine-tuning
