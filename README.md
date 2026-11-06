@@ -56,6 +56,12 @@ and Random Forest settings.
 English is case-insensitive throughout. Labels are lowercased when they are loaded, and every metric
 compares lowercased text, so `SHOP` and `shop` count as the same word.
 
+## Getting the trained models
+
+The trained model files are not stored in the repository. They are attached as assets to the
+releases on the [GitHub Releases page](https://github.com/k-vruttika/kannada-english-signboard-ocr/releases).
+Download them and place them in the `models/` folder. The datasets are shared separately.
+
 ## Full run order
 
 Everything still needed for real results, in order. Steps marked **Colab** run in a notebook with a
