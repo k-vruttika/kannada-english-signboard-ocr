@@ -31,7 +31,7 @@ def load_models(cfg, script, wanted):
         pretrained = path.replace(".pth", "_pretrained.pth")
         if name == "D-CRNN" and not os.path.exists(path) and os.path.exists(pretrained):
             # no fine-tuned CRNN yet, so the pre-trained one is evaluated under its own name
-            name, path = "D (pre-trained only)", pretrained
+            name, path = "D-CRNN (pre-trained only)", pretrained
         if not os.path.exists(path):
             print(f"{name} {script}: {path} not found, skipped")
             continue
@@ -197,7 +197,7 @@ def main():
     write_csv(os.path.join(out, "errors.csv"), errors,
               ["model", "script", "test_set", "preprocessing", "path", "ref", "pred", "n_units", "n_segments",
                "confidence", "suggested_category", "category"])
-    # model names as they appear in the rows, so "D (pre-trained only)" gets its own bar
+    # model names as they appear in the rows, so "D-CRNN (pre-trained only)" gets its own bar
     charts(rows, confusions, out, list(SETTINGS), list(dict.fromkeys(r["model"] for r in rows)))
     print(f"{len(rows)} result rows, {len(errors)} sample errors -> {out}")
     print(f"fill the category column of errors.csv with one of: {CATEGORIES}")

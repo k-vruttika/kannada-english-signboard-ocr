@@ -3,7 +3,7 @@ import os
 import sys
 import time
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, font, messagebox, ttk
 from types import SimpleNamespace
 
 import cv2
@@ -45,7 +45,7 @@ def model_path(letter, script):
 
 def label(letter):
     if letter == "D" and model_path("D", app.script.get()).endswith("_pretrained.pth"):
-        return "D (pre-trained only)"
+        return "D  CRNN (pre-trained only)"
     return LABELS[letter]
 
 
@@ -357,7 +357,9 @@ def build_panel(parent):
     ttk.Label(panel, text="Results").pack(anchor="w")
     table_frame = ttk.Frame(panel)
     table_frame.pack(fill="both", expand=True, pady=(2, 0))
-    columns = (("model", "Model", 150), ("text", "Text", 100), ("conf", "Confidence", 75), ("ms", "Time (ms)", 70))
+    columns = (("model", "Model", 190), ("text", "Text", 160), ("conf", "Confidence", 75), ("ms", "Time (ms)", 70))
+    # the default row height cuts off Kannada vowel signs, and large screen fonts make it worse
+    ttk.Style().configure("Treeview", rowheight=round(1.8 * font.nametofont("TkDefaultFont").metrics("linespace")))
     app.table = ttk.Treeview(table_frame, columns=[c for c, _, _ in columns], show="headings", height=8)
     for key, heading, width in columns:
         app.table.heading(key, text=heading)
