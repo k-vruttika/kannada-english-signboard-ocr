@@ -269,6 +269,15 @@ def export_csv():
     status(f"Exported {len(app.records)} results to {path}")
 
 
+def open_review():
+    if not os.path.exists(os.path.join(app.cfg["paths"]["crops"], "auto_labels.tsv")):
+        messagebox.showinfo("Review labels", "There are no automatic labels yet. Run src/autolabel.py first (see README).")
+        return
+    # a separate process, so the review window has its own Tk main loop
+    import subprocess
+    subprocess.Popen([sys.executable, os.path.join(ROOT, "app", "review_labels.py")])
+
+
 def build_menu(root):
     menubar = tk.Menu(root)
     file_menu = tk.Menu(menubar, tearoff=False)
@@ -278,6 +287,7 @@ def build_menu(root):
     file_menu.add_command(label="Exit", command=root.destroy)
     tools_menu = tk.Menu(menubar, tearoff=False)
     tools_menu.add_command(label="Suggest boxes (MSER)", command=suggest_boxes)
+    tools_menu.add_command(label="Review automatic labels...", command=open_review)
     menubar.add_cascade(label="File", menu=file_menu)
     menubar.add_cascade(label="Tools", menu=tools_menu)
     root.configure(menu=menubar)
@@ -304,6 +314,9 @@ def build_canvas(parent):
     for event, handler in (("<ButtonPress-1>", on_press), ("<B1-Motion>", on_drag), ("<ButtonRelease-1>", on_release),
                            ("<MouseWheel>", on_wheel)):
         app.canvas.bind(event, handler)
+    # on Linux the wheel arrives as buttons 4 and 5 instead of <MouseWheel>
+    app.canvas.bind("<Button-4>", lambda e: (setattr(e, "delta", 120), on_wheel(e)))
+    app.canvas.bind("<Button-5>", lambda e: (setattr(e, "delta", -120), on_wheel(e)))
     return frame
 
 
