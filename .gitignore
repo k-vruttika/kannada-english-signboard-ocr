@@ -1,5 +1,6 @@
 # environment and caches
 .venv/
+.venv-label/
 __pycache__/
 .ipynb_checkpoints/
 

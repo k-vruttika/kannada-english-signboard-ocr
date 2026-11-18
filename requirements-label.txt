@@ -1,0 +1,8 @@
+# Only for src/autolabel.py, in its own Python 3.13 environment (.venv-label); see README.
+# PaddlePaddle has no wheels for Python 3.14 yet.
+paddlepaddle==3.2.0
+paddleocr==3.7.0
+opencv-python
+numpy
+pyyaml
+google-auth    # only needed for a service-account file instead of GCV_API_KEY

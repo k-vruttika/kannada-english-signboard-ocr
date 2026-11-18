@@ -36,8 +36,7 @@ The project is in progress. No results have been produced yet.
 
 **To be done**
 
-- Annotation of the photos. The annotation method has not been finalised; several approaches are
-  being evaluated.
+- Annotation of the photos: automatic labelling (GCV + PaddleOCR), then checking every word by hand in `app/review_labels.py`.
 - Word crops and the train/test split, generated from the annotations.
 - Rebuilding the Kannada charset with the train-split labels, and retraining A–C if it changes.
 - Downloading the public test sets (IndicSTR12 Kannada, IIIT5K).
@@ -104,10 +103,16 @@ steps run locally. Each stage is marked **Done**, **Partly done** or **To be don
 5. Locate the MJSynth download link. This dataset is never downloaded in full, either locally or to
    Google Drive. *(To be done)*
 
-**2. Annotate and crop the photos** (To be done)
+**2. Label and crop the photos** (To be done)
 
-The photos have been collected; the annotation method is still being decided (see
-[Photo annotation](#photo-annotation)).
+- [ ] Put the photos in `data/photos/`.
+- [ ] Set up the labelling environment once, and set your GCV key (see [Automatic labelling](#automatic-labelling-gcv--paddleocr)).
+- [ ] `.venv-label/bin/python src/autolabel.py` finds, reads and crops every word.
+- [ ] `python app/review_labels.py`: accept, correct or delete each word until you have enough.
+- [ ] While reviewing, draw or check `char` boxes for about 50 words per script.
+
+Label Studio still works instead (see [Your photos and Label Studio](#your-photos-and-label-studio)),
+but it is all manual.
 
 **3. Build the Kannada charset** (Done, to be repeated after annotation)
 
@@ -166,23 +171,99 @@ and the other public datasets are not needed. The notebooks write their archives
 All paths below are the defaults from `config.yaml`. If the directories are named differently, update
 the configuration rather than moving the files.
 
-### Photo annotation
+### Automatic labelling (GCV + PaddleOCR)
 
-*Status: to be done.*
+Typing 300+ words by hand takes too long, so an existing OCR system writes a first guess for every word
+and a person checks each one. As the internship guide advised, the automatic labels are only an
+initialisation: a word reaches `data/crops/labels.tsv` only after it has been accepted or corrected in
+the review tool. Otherwise the models would be compared with another OCR system's output instead of
+with ground truth. Kannada comes from **Google Cloud Vision** (the strongest baseline for Kannada) and
+English from **PaddleOCR**. Neither is used by models A–D; they only produce draft labels.
 
-The shop-sign photos are stored in `data/photos/`. They have not yet been annotated, and the
-annotation tool and workflow are still being evaluated. Whichever method is chosen, the annotations
-must provide:
+**Setup (once).** PaddlePaddle has no wheels for Python 3.14, so the labelling script has its own
+Python 3.13 environment, `.venv-label`:
+
+```
+pip install uv
+uv python install 3.13
+uv venv --python 3.13 .venv-label
+uv pip install --python .venv-label -r requirements-label.txt
+```
+
+On Windows use `.venv-label\Scripts\python` wherever this section says `.venv-label/bin/python`.
+
+**GCV key.** In Google Cloud Console, create a project, enable the *Cloud Vision API* (billing must be
+on; the first 1000 images a month are free), and create an API key under *APIs & Services →
+Credentials*. Put it in the environment, never in a file in the repository:
+
+```
+export GCV_API_KEY=...         (Linux)
+set GCV_API_KEY=...            (cmd)
+$env:GCV_API_KEY = "..."       (PowerShell)
+```
+
+A service-account JSON file in `GOOGLE_APPLICATION_CREDENTIALS` works as well.
+
+**Run.**
+
+```
+.venv-label/bin/python src/autolabel.py
+.venv-label/bin/python src/autolabel.py --limit 5     a quick test on five photos
+```
+
+For each photo it keeps the Kannada words found by GCV and the English words found by PaddleOCR.
+PaddleOCR words that lie on a Kannada word are dropped, because the English model reads Kannada as junk.
+Every word is cropped with a small margin into `data/crops/`, and the candidates are listed in
+`data/crops/auto_labels.tsv`. For Kannada words, GCV's per-letter boxes are grouped into aksharas and
+offered as draft `char` boxes. The raw OCR output is cached in `data/ocr_cache/`, so a rerun costs
+nothing and sends nothing. The train/test split by photo is fixed here, with the config seed, before
+anyone looks at the labels. Once a review has started, `autolabel.py` refuses to run again unless you
+pass `--force`, because new crops would not match the decisions already made.
+
+**Review.**
+
+```
+python app/review_labels.py          (or Tools → Review automatic labels in the app)
+```
+
+The window shows the photo with the word marked, the crop enlarged, and the OCR text in an edit box.
+Below the box, Kannada text is also drawn with Pillow, because Tk cannot shape Kannada conjuncts on
+every system. That drawing shows how the label will actually look.
+
+| Key | Action |
+|---|---|
+| Enter | accept the word as typed, then go to the next one |
+| Ctrl+D | delete the crop (not a word, cut off, unreadable, wrong language) |
+| PgUp / PgDn | previous / next word |
+| Ctrl+U | next unchecked word |
+| Ctrl+G / Ctrl+R | grow the crop when a letter is cut off / reset it |
+| drag, right-click on the crop | draw / remove a `char` box |
+| Ctrl+B | mark the `char` boxes as checked |
+| Ctrl+X | clear the `char` boxes |
+
+Every decision is saved straight away to `data/crops/review.json`, and `labels.tsv` is rewritten with
+the accepted words only. You can close the window and carry on later. The script follows from the text
+(any Kannada letter means Kannada), and English letters outside `a–z 0–9 &` get a warning. `char` boxes
+reach `labels.tsv` only for words marked as checked, and only when their count equals the number of
+units in the word. In the report, say that the labels were initialised with GCV and PaddleOCR and that
+every word was then checked and corrected by hand.
+
+OCR systems miss some words. That does not matter here, because the aim is a few hundred correct
+words, not every word on every sign.
+
+### Your photos and Label Studio
+
+This is the fully manual alternative to the automatic labelling above. The photos stay in
+`data/photos/`, with the same file names as uploaded to Label Studio. The annotations must provide:
 
 - one bounding box per word, with its script (`kannada` or `english`) and transcription;
 - for a subset of about 50 words per script, one box per letter or akshara, used to check
   segmentation against the ground truth.
 
-`src/make_crops.py` currently reads a Label Studio JSON export (`data/labelstudio.json`). If a
-different tool is chosen, this converter will be adapted. It produces `data/crops/*.png` and
-`data/crops/labels.tsv` with the columns `path, text, script, photo_id, n_units, split, char_boxes`.
-The data is split 70/30 by photo using the configured seed, and the test split is never used for
-training or tuning.
+`src/make_crops.py` reads the Label Studio JSON export (`data/labelstudio.json`). Both routes produce
+`data/crops/*.png` and `data/crops/labels.tsv` with the columns
+`path, text, script, photo_id, n_units, split, char_boxes`. The data is split 70/30 by photo using the
+configured seed, and the test split is never used for training or tuning.
 
 ### Public datasets
 
@@ -310,6 +391,8 @@ The desktop application is implemented and runs with the models currently availa
   Each model adds a row showing its output text, confidence and recognition time.
 - **The preview** shows the segments classified by models A–C.
 - **Export** the session's results via *File → Export results to CSV*.
+- **Check labels** via *Tools → Review automatic labels*, which opens the review tool described under
+  [Automatic labelling](#automatic-labelling-gcv--paddleocr).
 
 Models are loaded from `models/` on first use. Unavailable models are greyed out and named in the
 status bar. Model D for English is not yet available, and model D for Kannada currently uses the
@@ -322,11 +405,13 @@ within the same model.
 ```
 config.yaml            settings: paths, image height, charsets, seeds, segmenter, training
 charsets/              english.txt, kannada.txt, kannada_alphabet.txt
-data/                  photos/, crops/, public/, rendered/
-src/                   akshara, preprocess, make_crops, datasets, build_charset, render_chars,
+data/                  photos/, ocr_cache/, crops/, public/, rendered/ (labelstudio.json if used)
+src/                   akshara, preprocess, autolabel, make_crops, datasets, build_charset, render_chars,
                        mjsynth_subset, subset_words, segment, classical, models, metrics, evaluate, plots
 notebooks/             render_chars, train_cnn, train_crnn (Colab)
 app/app.py             Tkinter application
+app/review_labels.py   Tkinter tool to check the automatic labels
+requirements-label.txt the labelling environment (.venv-label, Python 3.13)
 models/                trained .joblib / .pth + .json files
 results/               evaluation outputs (generated by evaluate.py; currently empty)
 ```
