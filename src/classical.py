@@ -82,17 +82,24 @@ def memory_mb(model):
     return (svc.support_vectors_.nbytes + svc.dual_coef_.nbytes) / 1e6
 
 
-def predict_chars(bundle, X):
+def predict_chars(bundle, X, batch=64):
+    """Labels and confidences, a few rows at a time: an SVM with ~860 classes compares ~370,000 class pairs,
+    so scoring thousands of characters at once would need several GB."""
     model = bundle["model"]
-    if bundle["kind"] == "rf":
-        proba = model.predict_proba(X)
-    else:
-        scores = model.decision_function(X)
-        if scores.ndim == 1:
-            scores = np.stack([-scores, scores], axis=1)
-        scores = np.exp(scores - scores.max(axis=1, keepdims=True))
-        proba = scores / scores.sum(axis=1, keepdims=True)
-    return model.classes_[proba.argmax(axis=1)], proba.max(axis=1)
+    labels, confs = [], []
+    for i in range(0, len(X), batch):
+        part = X[i:i + batch]
+        if bundle["kind"] == "rf":
+            proba = model.predict_proba(part)
+        else:
+            scores = model.decision_function(part)
+            if scores.ndim == 1:
+                scores = np.stack([-scores, scores], axis=1)
+            scores = np.exp(scores - scores.max(axis=1, keepdims=True))
+            proba = scores / scores.sum(axis=1, keepdims=True)
+        labels.append(model.classes_[proba.argmax(axis=1)])
+        confs.append(proba.max(axis=1))
+    return np.concatenate(labels), np.concatenate(confs)
 
 
 def recognise(bundle, img, options=(), seg_params=None):
