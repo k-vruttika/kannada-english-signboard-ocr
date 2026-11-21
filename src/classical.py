@@ -14,7 +14,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 
-from datasets import RARE, clean_label, load_charset, load_config, load_public
+from datasets import RARE, clean_label, load_charset, load_config, load_public, per_class_for  # noqa: F401  (per_class_for is used by train_cnn.ipynb)
 from preprocess import dark_on_light, fit_square, read_image, to_gray
 from segment import segment_word
 
@@ -132,9 +132,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--script", required=True, choices=["kannada", "english"])
     ap.add_argument("--model", default="both", choices=["svm", "rf", "both"])
-    ap.add_argument("--per-class", type=int, default=cfg["char_per_class"],
-                    help="at most this many characters per class (0 = all); keep it equal to the CNN notebook")
+    ap.add_argument("--per-class", type=int, default=None,
+                    help="at most this many characters per class (0 = all); default: char_per_class in "
+                         "config.yaml. Keep it equal to the CNN notebook")
     args = ap.parse_args()
+    if args.per_class is None:
+        args.per_class = per_class_for(cfg, args.script)
 
     train_set, val_set = char_split(cfg, args.script, args.per_class)
     print(f"{sum(1 for _, t in train_set if t == RARE)} training characters are {RARE}")

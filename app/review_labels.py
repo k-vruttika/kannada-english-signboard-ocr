@@ -11,6 +11,7 @@ import argparse
 import csv
 import json
 import os
+import random
 import subprocess
 import sys
 import tkinter as tk
@@ -30,6 +31,8 @@ from preprocess import read_image  # noqa: E402
 
 PHOTO_VIEW = (560, 430)
 CROP_VIEW = (640, 230)
+GOAL_TEST = 100      # reviewed test-split words per script: the results are measured on these
+GOAL_BOXES = 50      # test-split words per script with checked char boxes, for segmentation against ground truth
 ENGLISH_CHARS = set("abcdefghijklmnopqrstuvwxyz0123456789&")
 HELP = ("Enter accept   Ctrl+D delete   PgUp/PgDn previous/next   Ctrl+U next unchecked   Ctrl+G grow crop   "
         "Ctrl+R reset crop   Ctrl+B char boxes checked   Ctrl+X clear char boxes   "
@@ -45,7 +48,8 @@ LABELS_FILE = os.path.join(CROPS, "labels.tsv")
 class State:
     rows = []          # auto_labels.tsv, in photo order
     review = {}        # path -> decision
-    order = []         # indices of rows that pass the filter
+    queue = []         # indices of rows in review order, spread over the photos
+    order = []         # the part of queue that passes the filter
     pos = 0            # position in order
     boxes = []         # char boxes of the current word, relative to its crop
     box = None         # current crop box in the photo
@@ -85,6 +89,22 @@ def write_labels():
     os.replace(tmp, LABELS_FILE)
 
 
+def review_queue(rows, seed):
+    """Test-split words first, because the results are measured on them; within each split one Kannada
+    and one English word from every photo, then the next of each, so that a few hundred reviewed words
+    cover many different signs instead of the first few photos."""
+    photos = sorted({r["photo_id"] for r in rows})
+    # a different seed from the train/test split, which shuffles the same sorted list
+    random.Random(seed + 1).shuffle(photos)
+    photo_pos = {p: i for i, p in enumerate(photos)}
+    seen, keys = {}, []
+    for i, r in enumerate(rows):
+        group = (r["photo_id"], r["script"])
+        seen[group] = seen.get(group, 0) + 1
+        keys.append((r["split"] != "test", seen[group], photo_pos[r["photo_id"]], r["script"], i))
+    return [k[-1] for k in sorted(keys)]
+
+
 def load():
     if not os.path.exists(AUTO_FILE):
         messagebox.showerror("Review labels", f"{AUTO_FILE} not found.\nRun src/autolabel.py first (see README).")
@@ -98,6 +118,7 @@ def load():
         S.review = json.load(open(REVIEW_FILE, encoding="utf-8"))
     photos = cfg["paths"]["photos"]
     S.photo_files = {os.path.splitext(f)[0]: os.path.join(photos, f) for f in os.listdir(photos)}
+    S.queue = review_queue(S.rows, cfg["seed"])
     write_labels()
 
 
@@ -162,7 +183,8 @@ def crop_image():
 def apply_filter(keep_path=None):
     status_f, script_f = ui.filter.get(), ui.script_filter.get()
     S.order = []
-    for i, r in enumerate(S.rows):
+    for i in S.queue:
+        r = S.rows[i]
         d = decision(r)
         st = d.get("status", "unchecked")
         script = d.get("script", r["script"])
@@ -242,13 +264,17 @@ def update_box_note():
 
 
 def update_progress():
-    done = [S.review[r["path"]] for r in S.rows if r["path"] in S.review]
-    acc = [d for d in done if d["status"] == "accepted"]
-    k = sum(d["script"] == "kannada" for d in acc)
-    kb = sum(d["script"] == "kannada" and d.get("boxes_ok") and bool(d.get("char_boxes")) for d in acc)
-    eb = sum(d["script"] == "english" and d.get("boxes_ok") and bool(d.get("char_boxes")) for d in acc)
-    ui.progress.configure(text=f"Checked {len(done)} of {len(S.rows)}.   Accepted {len(acc)}: Kannada {k}, "
-                               f"English {len(acc) - k}.   With checked char boxes: Kannada {kb}, English {eb}.")
+    done = [(r, S.review[r["path"]]) for r in S.rows if r["path"] in S.review]
+    acc = [(r, d) for r, d in done if d["status"] == "accepted"]
+
+    def count(script, split, boxed=False):
+        return sum(d["script"] == script and r["split"] == split and (not boxed or (d.get("boxes_ok") and bool(d.get("char_boxes"))))
+                   for r, d in acc)
+
+    ui.progress.configure(text=f"Checked {len(done)} of {len(S.rows)}.   Test words: Kannada {count('kannada', 'test')}/{GOAL_TEST}, "
+                               f"English {count('english', 'test')}/{GOAL_TEST}.   Test char boxes: Kannada "
+                               f"{count('kannada', 'test', True)}/{GOAL_BOXES}, English {count('english', 'test', True)}/{GOAL_BOXES}."
+                               f"   Train words: Kannada {count('kannada', 'train')}, English {count('english', 'train')}.")
 
 
 def on_text_change(*_):

@@ -1,12 +1,65 @@
 import argparse
+import http.client
 import os
 import tarfile
+import time
 import urllib.request
 
 import cv2
 import numpy as np
 
 from datasets import load_config
+
+
+class ResumingStream:
+    """A download that survives dropped connections and restarts of this script.
+
+    Every byte is also kept in a partial file, so a rerun continues where the last one stopped.
+    """
+
+    def __init__(self, url, partial, timeout=60):
+        self.url, self.timeout, self.response, self.total = url, timeout, None, None
+        self.saved = os.path.getsize(partial) if os.path.exists(partial) else 0
+        self.cache = open(partial, "a+b")
+        self.cache.seek(0)
+        self.pos, self.next_report = 0, 50_000_000
+
+    def connect(self):
+        request = urllib.request.Request(self.url, headers={"Range": f"bytes={self.pos}-"})
+        self.response = urllib.request.urlopen(request, timeout=self.timeout)
+        self.total = int(self.response.headers["Content-Range"].rsplit("/", 1)[1])
+
+    def from_network(self, size):
+        for attempt in range(1000):
+            try:
+                if self.response is None:
+                    self.connect()
+                data = self.response.read(size)
+                # a server that hangs up early looks like the end of the file
+                if data or self.pos >= self.total:
+                    return data
+                raise ConnectionError("the server closed the connection early")
+            except (OSError, http.client.HTTPException) as e:
+                print(f"connection lost at {self.pos / 1e6:.0f} MB ({e}); reconnecting", flush=True)
+                self.response = None
+                time.sleep(min(60, 2 ** min(attempt, 6)))
+        raise RuntimeError("the download kept failing")
+
+    def read(self, size=-1):
+        if self.pos < self.saved:
+            self.cache.seek(self.pos)
+            data = self.cache.read(min(size, self.saved - self.pos))
+        else:
+            data = self.from_network(size)
+            self.cache.seek(0, os.SEEK_END)
+            self.cache.write(data)
+            self.cache.flush()
+            self.saved += len(data)
+        self.pos += len(data)
+        if self.pos >= self.next_report:
+            print(f"{self.pos / 1e6:.0f} MB read", flush=True)
+            self.next_report += 50_000_000
+        return data
 
 
 def word_of(name):
@@ -26,7 +79,8 @@ def main():
 
     lines, broken, seen = [], 0, 0
     # "r|gz" reads the archive as a stream, so the download stops as soon as we break out
-    with urllib.request.urlopen(args.url) as response, tarfile.open(fileobj=response, mode="r|gz") as tar:
+    partial = os.path.join(os.path.dirname(os.path.normpath(args.out)), "mjsynth_partial.tar.gz")
+    with tarfile.open(fileobj=ResumingStream(args.url, partial), mode="r|gz") as tar:
         for member in tar:
             if not member.isfile() or not member.name.endswith(".jpg"):
                 continue
@@ -49,6 +103,7 @@ def main():
             if len(lines) >= args.n:
                 break
 
+    os.remove(partial)
     # same format as the original annotation file, so load_mjsynth reads it unchanged
     with open(os.path.join(args.out, cfg["public"]["mjsynth"]["train"]), "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
