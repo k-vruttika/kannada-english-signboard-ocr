@@ -114,8 +114,12 @@ def run_epoch(model, step, loader, optimizer=None):
     return total / n, preds, refs
 
 
-def fit(model, step, train_loader, val_loader, lr, max_epochs, patience):
-    """Adam with early stopping on validation loss; the best weights are restored at the end."""
+def fit(model, step, train_loader, val_loader, lr, max_epochs, patience, on_best=None, max_seconds=None):
+    """Adam with early stopping on validation loss; the best weights are restored at the end.
+
+    on_best(epoch, val_loss) runs after every new best epoch, so a long CPU run can save a checkpoint.
+    max_seconds stops after the epoch in which that much time has passed.
+    """
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     best_loss, best_state, bad, epoch = float("inf"), None, 0, 0
     start = time.perf_counter()
@@ -129,11 +133,16 @@ def fit(model, step, train_loader, val_loader, lr, max_epochs, patience):
               f"val exact {exact_match(preds, refs):.1f}%, val CER {cer(preds, refs):.1f}%")
         if val_loss < best_loss - 1e-4:
             best_loss, best_state, bad = val_loss, copy.deepcopy(model.state_dict()), 0
+            if on_best:
+                on_best(epoch, val_loss)
         else:
             bad += 1
             if bad >= patience:
                 print(f"early stop: no improvement for {patience} epochs")
                 break
+        if max_seconds and time.perf_counter() - start >= max_seconds:
+            print(f"time limit reached after epoch {epoch}")
+            break
     model.load_state_dict(best_state)
     seconds = time.perf_counter() - start
     print(f"training time {seconds / 60:.1f} min, best val loss {best_loss:.4f}")

@@ -3,7 +3,7 @@ import os
 from collections import Counter
 
 from akshara import split_aksharas
-from datasets import codepoints, load_config, read_labels, read_lines
+from datasets import codepoints, load_config, per_class_for, read_labels, read_lines
 
 
 def is_kannada(unit):
@@ -32,7 +32,7 @@ def choose(counts, coverage):
 def rf_memory_gb(n_classes, cfg):
     # rough: a tree has about n_train / min_samples_leaf nodes, and every node stores one float64 per class
     # plus a 64-byte node record; this agrees with the ~2 GB measured for the earlier 972-class charset
-    per_class = cfg["char_per_class"] or cfg["render"]["per_class"]
+    per_class = per_class_for(cfg, "kannada") or cfg["render"]["per_class"]
     n_train = 0.9 * n_classes * per_class  # classical.py holds out a tenth for validation
     nodes = n_train / cfg["classical"]["rf_min_samples_leaf"]
     return cfg["classical"]["rf_trees"] * nodes * (8 * n_classes + 64) / 1e9
@@ -74,7 +74,7 @@ def main():
     print(f"{len(alphabet)} Kannada code points -> {args.alphabet_out} (CRNN alphabet)")
     c = cfg["classical"]
     print(f"\nclasses kept at other coverages, with a rough Kannada RF memory estimate "
-          f"({cfg['char_per_class']} per class, {c['rf_trees']} trees, min_samples_leaf {c['rf_min_samples_leaf']}):")
+          f"({per_class_for(cfg, 'kannada')} per class, {c['rf_trees']} trees, min_samples_leaf {c['rf_min_samples_leaf']}):")
     for cov in (0.95, 0.97, 0.98, 0.99):
         n = len(choose(counts, cov)[0])
         print(f"  {cov:.2f}: {n:5d} classes, RF about {rf_memory_gb(n, cfg):.1f} GB")

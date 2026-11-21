@@ -99,7 +99,8 @@ steps run locally. Each stage is marked **Done**, **Partly done** or **To be don
 2. Download IIIT5K and place `test/` and `testdata.mat` in `data/public/IIIT5K/`. *(To be done)*
 3. Download IndicSTR12 `test.zip` and extract it inside `data/public/indicstr12_kannada/`, which
    produces `test/images/` and `test/test_gt.txt`. *(To be done)*
-4. Optionally, add Chars74K English and Kannada (see [Public datasets](#public-datasets)).
+4. Add Chars74K English (see [Public datasets](#public-datasets)); A–C use its real-photo letters. *(Done)*
+   Chars74K Kannada is optional.
 5. Locate the MJSynth download link. This dataset is never downloaded in full, either locally or to
    Google Drive. *(To be done)*
 
@@ -137,8 +138,8 @@ but it is all manual.
 
 **6. Train model C** (Done)
 
-1. **Colab**: run `notebooks/train_cnn.ipynb` once with `SCRIPT = 'english'` and once with
-   `SCRIPT = 'kannada'`.
+1. `python src/train_cnn.py --script english` (a few minutes on the CPU). For Kannada, use the same
+   command or, faster, **Colab**: `notebooks/train_cnn.ipynb` with `SCRIPT = 'kannada'`.
 2. Confirm that each printed fingerprint matches the one from step 5 for the same script. A mismatch
    means A, B and C were not trained on the same characters.
 3. Download `models/cnn_<script>.pth` and the matching `.json` into `models/`.
@@ -148,9 +149,17 @@ but it is all manual.
 1. **Colab**: run `notebooks/train_crnn.ipynb` with `SCRIPT = 'kannada'`. Without annotated crops, the
    notebook only pre-trains and saves `models/crnn_kannada_pretrained.pth`. *(Done)*
 2. Once crops exist, run it again. It reuses the pre-trained model (`REUSE_PRETRAINED`) and fine-tunes
-   it on the train split, saving `models/crnn_kannada.pth`. *(To be done)*
+   it on the train split, saving `models/crnn_kannada.pth`. *(Done, on the laptop with
+   `python src/train_crnn.py --script kannada`)*
 3. Repeat with `SCRIPT = 'english'` and `MJSYNTH_URL` set, and confirm that the subset contains tens
-   of thousands of unique words. *(To be done)*
+   of thousands of unique words. *(To be done on Colab; a first 60,000-word laptop run is too weak)*
+
+`src/train_crnn.py` runs the same steps on the laptop CPU. It saves the pre-trained model after every
+better epoch, `--resume` continues pre-training from it, and `--max-hours` stops each stage after the
+epoch that passes the limit. On a CPU one epoch over 60,000 words takes about 45 minutes, so English
+pre-training belongs on the Colab GPU; Kannada fine-tuning takes minutes. `src/mjsynth_subset.py`
+keeps the bytes it has downloaded in `data/public/mjsynth_partial.tar.gz`, so a dropped connection or
+a rerun continues where it stopped.
 
 Until fine-tuning is complete, the application and the evaluation fall back to the pre-trained
 Kannada model and label it as pre-trained only.
@@ -326,7 +335,8 @@ using free fonts (Noto Sans/Serif Kannada, Lohit Kannada, Noto, DejaVu, Liberati
 blur, noise and scaling are applied, and English characters are rendered in both cases.
 
 `python src/classical.py --script <english|kannada>` trains both models on HOG features of 32×32
-crops. It uses at most `char_per_class` samples per class and holds out 10% for the reported
+crops. It uses at most `char_per_class` samples per class (250 for English, which has Chars74K's
+real-photo letters as well, and 30 for Kannada) and holds out 10% for the reported
 validation accuracy. It saves `models/svm_<script>.joblib` and `models/rf_<script>.joblib` and reports
 their disk size and approximate memory usage. The forest uses 50 trees with a minimum of 5 samples per
 leaf, since scikit-learn stores one value per class in every node. Even with these limits, the Kannada
@@ -340,6 +350,7 @@ the training time. The resulting `.pth` and `.json` files are downloaded into `m
 application and evaluation run them on the CPU.
 
 - **`train_cnn.ipynb`** trains model C on the same characters as A and B, verified by the fingerprint.
+  `src/train_cnn.py` runs the same steps on the laptop CPU, which is enough for English (37 classes).
 - **`train_crnn.ipynb`** trains model D in two stages. It first pre-trains on the public subset,
   holding out 5% for validation, then fine-tunes on the train split of the annotated crops, holding out
   15% of those photos for validation. The network reduces the width by a factor of 4, so each word
@@ -407,7 +418,8 @@ config.yaml            settings: paths, image height, charsets, seeds, segmenter
 charsets/              english.txt, kannada.txt, kannada_alphabet.txt
 data/                  photos/, ocr_cache/, crops/, public/, rendered/ (labelstudio.json if used)
 src/                   akshara, preprocess, autolabel, make_crops, datasets, build_charset, render_chars,
-                       mjsynth_subset, subset_words, segment, classical, models, metrics, evaluate, plots
+                       mjsynth_subset, subset_words, segment, classical, train_cnn, train_crnn, models, metrics,
+                       evaluate, plots
 notebooks/             render_chars, train_cnn, train_crnn (Colab)
 app/app.py             Tkinter application
 app/review_labels.py   Tkinter tool to check the automatic labels

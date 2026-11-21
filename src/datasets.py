@@ -69,6 +69,12 @@ def split_list(samples, split, train_frac, seed=42):
     return samples[:n] if split == "train" else samples[n:]
 
 
+def per_class_for(cfg, script):
+    """char_per_class from config.yaml: one number for both scripts, or one per script."""
+    n = cfg["char_per_class"]
+    return n[script] if isinstance(n, dict) else n
+
+
 def read_labels(crops_dir):
     with open(os.path.join(crops_dir, "labels.tsv"), encoding="utf-8", newline="") as f:
         return list(csv.DictReader(f, delimiter="\t"))

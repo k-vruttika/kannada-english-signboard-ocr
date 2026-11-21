@@ -60,8 +60,12 @@ segment:
   split_margin: 0.2   # never cut within this share of either edge
 
 # A, B and C are trained on the same characters: at most this many per class, same seed, same
-# held-out tenth for validation (classical.py and train_cnn.ipynb print a fingerprint to check)
-char_per_class: 30
+# held-out tenth for validation (classical.py and train_cnn.ipynb print a fingerprint to check).
+# English has Chars74K's real-photo letters on top of the rendered ones; Kannada stays low because the
+# Kannada Random Forest stores one value per class (~860) in every tree node.
+char_per_class:
+  english: 250
+  kannada: 30
 
 classical:
   svm_c: 10
