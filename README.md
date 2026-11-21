@@ -1,72 +1,64 @@
 # OCR for Kannada–English Shop Signs
 
-MCA internship project: *Optical Character Recognition – Quantification with Various ML
-Approaches*. The project recognises cropped word images from Kannada and English shop signs using
-four models, all trained from scratch:
+MCA internship project: *Optical Character Recognition – Quantification with Various ML Approaches*.
 
-| | Model | Requires segmentation |
+The project reads cropped word images from Kannada and English shop signs and compares four models.
+All four are trained from scratch; no pretrained OCR models or weights are used.
+
+| | Model | Needs segmentation |
 |---|---|---|
 | A | HOG + SVM | yes |
 | B | HOG + Random Forest | yes |
 | C | Small CNN | yes |
 | D | CRNN (CNN + BiLSTM + CTC) | no |
 
-Models A–C share a single conventional segmenter (Otsu thresholding, connected components and
-projection profiles), applied unchanged to both scripts. The central question of the project is how
-often this segmenter fails on Kannada, where a single akshara frequently consists of several
-components and adjacent characters often touch. The primary metric is therefore the segmentation
-success rate. No pretrained OCR models or weights are used.
+Models A–C use one shared segmenter (Otsu thresholding, connected components and projection profiles)
+for both scripts. The main question is how often this segmenter fails on Kannada, where one akshara is
+often made of several pieces and neighbouring letters often touch. So the main metric is the
+segmentation success rate.
 
-## Project Status
+## Status
 
-The project is in progress. No results have been produced yet.
+All four models are trained for both scripts and evaluated. The results are in the
+[Evaluation](#evaluation) section.
 
-**Completed**
+- 333 shop-sign photos, split 70/30 by photo.
+- 652 checked word labels: 244 test words (114 Kannada, 130 English) and 408 training words.
+  198 of the test words also have checked character boxes (105 Kannada, 93 English).
+- The labels were first filled in automatically (Google Cloud Vision for Kannada, PaddleOCR for English)
+  and then every word was checked and corrected by hand. All results are measured against these
+  corrected labels, not against another OCR system's output.
+- Models A–C are trained on the same characters for each script (Kannada: rendered letters, 30 per
+  class; English: rendered letters and Chars74K, 250 per class).
+- Model D is pre-trained on 190,000 synthetic words per script (IIIT Synthetic Kannada, MJSynth) and
+  then fine-tuned on the training words.
+- Test sets: the photo test split, IndicSTR12 (Kannada) and IIIT5K (English).
 
-- Core modules: akshara splitting, preprocessing, metrics, segmentation, dataset loaders, charset
-  builder, character rendering, model definitions, Colab training notebooks, the evaluation pipeline
-  and the desktop application.
-- 360 shop-sign photos collected (`data/photos/`).
-- Kannada vocabulary extracted from the IIIT synthetic Kannada set, and the Kannada charset built
-  from it.
-- Training characters rendered for both scripts.
-- Models A and B trained for English and Kannada.
-- Model C trained for English and Kannada.
-- Model D (Kannada) pre-trained on a subset of the synthetic Kannada words.
-
-**To be done**
-
-- Annotation of the photos: automatic labelling (GCV + PaddleOCR), then checking every word by hand in `app/review_labels.py`.
-- Word crops and the train/test split, generated from the annotations.
-- Rebuilding the Kannada charset with the train-split labels, and retraining A–C if it changes.
-- Downloading the public test sets (IndicSTR12 Kannada, IIIT5K).
-- Fine-tuning model D (Kannada) on the annotated crops.
-- Training model D (English) on an MJSynth subset.
-- Running the evaluation and analysing the results.
+Still left: sorting the sample errors in `results/errors.csv` into categories.
 
 ## Setup
 
-The project has been tested with Python 3.13 on Windows. All commands are run from the project root.
+Tested with Python 3.13/3.14 on Windows and Ubuntu. Run all commands from the project folder.
 
 ```
 python -m venv .venv
-.venv\Scripts\activate
+.venv\Scripts\activate            (Windows)
+source .venv/bin/activate         (Linux)
 pip install -r requirements.txt
 ```
 
-On Windows, the PyPI build of PyTorch is CPU-only, which is sufficient for local use. GPU training is
-done in Google Colab.
+PyTorch from PyPI is CPU-only on Windows, which is fine for running the models. GPU training was done
+on Google Colab.
 
-The scripts print Kannada text. This works in an interactive terminal, but raises
-`UnicodeEncodeError` when output is piped or redirected to a file. Enabling Python's UTF-8 mode in the
-terminal avoids this:
+The scripts print Kannada text. If the output is redirected to a file on Windows, Python can raise
+`UnicodeEncodeError`. Turning on UTF-8 mode fixes this:
 
 ```
 set PYTHONUTF8=1          (cmd)
 $env:PYTHONUTF8 = "1"     (PowerShell)
 ```
 
-Each core module includes a self-check:
+The core modules have small self-checks:
 
 ```
 python src/akshara.py
@@ -76,121 +68,58 @@ python src/segment.py
 python src/models.py
 ```
 
-All settings are defined in `config.yaml`: paths, image height, charsets, seeds, data split, segmenter,
-training and Random Forest parameters.
+All settings (paths, image height, charsets, seed, split, segmenter, training and Random Forest
+parameters) are in `config.yaml`.
 
-English recognition is case-insensitive. Labels are lowercased on load and all metrics compare
-lowercased text, so `SHOP` and `shop` are treated as the same word.
+English is case-insensitive: labels are lowercased when loaded, so `SHOP` and `shop` count as the same
+word.
 
 ## Trained Models
 
-Trained model files are not stored in the repository. They are published as release assets on the
-[GitHub Releases page](https://github.com/k-vruttika/kannada-english-signboard-ocr/releases) and should
-be placed in the `models/` directory. The datasets are distributed separately.
+The trained model files are not stored in the repository. They are on the
+[Releases page](https://github.com/k-vruttika/kannada-english-signboard-ocr/releases) and go in the
+`models/` folder. The datasets are not included either.
 
-## Workflow
+## Steps
 
-The pipeline is listed below in order. Steps marked **Colab** run in a notebook on a T4 GPU; all other
-steps run locally. Each stage is marked **Done**, **Partly done** or **To be done**.
+The full pipeline, in order. Steps marked **Colab** were run in a notebook on a T4 GPU; the rest run
+locally.
 
-**1. Obtain the data** (Partly done)
+1. **Get the data.** IIIT synthetic Kannada (Colab, only `vocabulary.txt` is needed locally), IIIT5K,
+   IndicSTR12 Kannada test set, Chars74K English and an MJSynth subset (streamed on Colab). Locations
+   are listed under [Public datasets](#public-datasets).
+2. **Label and crop the photos.** `src/autolabel.py` finds, reads and crops the words, and
+   `app/review_labels.py` is used to accept, correct or delete each one and to check the character
+   boxes. See [Labelling](#labelling).
+3. **Build the Kannada charset.** `python src/build_charset.py` (859 classes). Models A–D depend on
+   this file, so steps 4–7 have to be repeated if it changes.
+4. **Render the training characters** (Colab): `notebooks/render_chars.ipynb`, then extract the two
+   zip files into `data/rendered/`.
+5. **Train A and B:** `python src/classical.py --script english` and `--script kannada`. Each run
+   prints a fingerprint of the characters used.
+6. **Train C:** `python src/train_cnn.py --script <english|kannada>` or `notebooks/train_cnn.ipynb`.
+   The printed fingerprint must match the one from step 5, so A, B and C use the same characters.
+7. **Train D:** `notebooks/train_crnn.ipynb` (Colab) or `python src/train_crnn.py --script <script>`.
+   It pre-trains on the public words and then fine-tunes on the training split.
+8. **Evaluate:** `python src/evaluate.py`.
 
-1. Download the IIIT synthetic Kannada set on Colab and extract its vocabulary. *(Done)*
-2. Download IIIT5K and place `test/` and `testdata.mat` in `data/public/IIIT5K/`. *(To be done)*
-3. Download IndicSTR12 `test.zip` and extract it inside `data/public/indicstr12_kannada/`, which
-   produces `test/images/` and `test/test_gt.txt`. *(To be done)*
-4. Add Chars74K English (see [Public datasets](#public-datasets)); A–C use its real-photo letters. *(Done)*
-   Chars74K Kannada is optional.
-5. Locate the MJSynth download link. This dataset is never downloaded in full, either locally or to
-   Google Drive. *(To be done)*
-
-**2. Label and crop the photos** (To be done)
-
-- [ ] Put the photos in `data/photos/`.
-- [ ] Set up the labelling environment once, and set your GCV key (see [Automatic labelling](#automatic-labelling-gcv--paddleocr)).
-- [ ] `.venv-label/bin/python src/autolabel.py` finds, reads and crops every word.
-- [ ] `python app/review_labels.py`: accept, correct or delete each word until you have enough.
-- [ ] While reviewing, draw or check `char` boxes for about 50 words per script.
-
-Label Studio still works instead (see [Your photos and Label Studio](#your-photos-and-label-studio)),
-but it is all manual.
-
-**3. Build the Kannada charset** (Done, to be repeated after annotation)
-
-1. **Colab**: run `notebooks/train_crnn.ipynb` with `SCRIPT = 'kannada'` up to the cell marked
-   *training reads the public words*.
-2. Download `data/public/kannada_synth/vocabulary.txt` from Drive to the same path locally.
-3. Run `python src/build_charset.py` and review the aksharas it excludes.
-4. Upload the new `charsets/kannada.txt` to Drive. All models depend on this file, so steps 4–7 must
-   be repeated whenever the charset changes.
-
-**4. Render the training characters** (Done)
-
-1. **Colab**: run `notebooks/render_chars.ipynb`. It should print `raqm: True`.
-2. Download `data/rendered_kannada.zip` and `data/rendered_english.zip` and extract both into
-   `data/rendered/`.
-
-**5. Train models A and B** (Done)
-
-1. `python src/classical.py --script english`
-2. `python src/classical.py --script kannada`
-3. Record the two fingerprints printed by these commands.
-
-**6. Train model C** (Done)
-
-1. `python src/train_cnn.py --script english` (a few minutes on the CPU). For Kannada, use the same
-   command or, faster, **Colab**: `notebooks/train_cnn.ipynb` with `SCRIPT = 'kannada'`.
-2. Confirm that each printed fingerprint matches the one from step 5 for the same script. A mismatch
-   means A, B and C were not trained on the same characters.
-3. Download `models/cnn_<script>.pth` and the matching `.json` into `models/`.
-
-**7. Train model D** (Partly done)
-
-1. **Colab**: run `notebooks/train_crnn.ipynb` with `SCRIPT = 'kannada'`. Without annotated crops, the
-   notebook only pre-trains and saves `models/crnn_kannada_pretrained.pth`. *(Done)*
-2. Once crops exist, run it again. It reuses the pre-trained model (`REUSE_PRETRAINED`) and fine-tunes
-   it on the train split, saving `models/crnn_kannada.pth`. *(Done, on the laptop with
-   `python src/train_crnn.py --script kannada`)*
-3. Repeat with `SCRIPT = 'english'` and `MJSYNTH_URL` set, and confirm that the subset contains tens
-   of thousands of unique words. *(To be done on Colab; a first 60,000-word laptop run is too weak)*
-
-`src/train_crnn.py` runs the same steps on the laptop CPU. It saves the pre-trained model after every
-better epoch, `--resume` continues pre-training from it, and `--max-hours` stops each stage after the
-epoch that passes the limit. On a CPU one epoch over 60,000 words takes about 45 minutes, so English
-pre-training belongs on the Colab GPU; Kannada fine-tuning takes minutes. `src/mjsynth_subset.py`
-keeps the bytes it has downloaded in `data/public/mjsynth_partial.tar.gz`, so a dropped connection or
-a rerun continues where it stopped.
-
-Until fine-tuning is complete, the application and the evaluation fall back to the pre-trained
-Kannada model and label it as pre-trained only.
-
-**8. Evaluate** (To be done)
-
-See [Evaluation](#evaluation).
-
-### Files required on Google Drive
-
-Drive requires `config.yaml`, `requirements.txt`, `src/`, `notebooks/`, `charsets/` and `data/crops/`,
-plus `data/public/chars74k/` if Chars74K is used. `.venv/`, `data/photos/`, `data/rendered/`, `models/`
-and the other public datasets are not needed. The notebooks write their archives, models and
-`vocabulary.txt` back to Drive.
+For Colab, Drive needs `config.yaml`, `requirements.txt`, `src/`, `notebooks/`, `charsets/` and
+`data/crops/` (and `data/public/chars74k/` for English). The notebooks save their models back to Drive.
 
 ## Data
 
-All paths below are the defaults from `config.yaml`. If the directories are named differently, update
-the configuration rather than moving the files.
+All paths are the defaults in `config.yaml`. If folders are named differently, change the config
+instead of moving the files.
 
-### Automatic labelling (GCV + PaddleOCR)
+### Labelling
 
-Typing 300+ words by hand takes too long, so an existing OCR system writes a first guess for every word
-and a person checks each one. As the internship guide advised, the automatic labels are only an
-initialisation: a word reaches `data/crops/labels.tsv` only after it has been accepted or corrected in
-the review tool. Otherwise the models would be compared with another OCR system's output instead of
-with ground truth. Kannada comes from **Google Cloud Vision** (the strongest baseline for Kannada) and
-English from **PaddleOCR**. Neither is used by models A–D; they only produce draft labels.
+Typing 300+ words by hand would take too long, so an existing OCR system gives a first guess for each
+word and every guess is checked by hand. Kannada is read with **Google Cloud Vision**, which is the
+best available baseline for Kannada, and English with **PaddleOCR**. These are only used to fill in
+draft labels; none of the models A–D use them. A word goes into `data/crops/labels.tsv` only after it
+is accepted or corrected in the review tool.
 
-**Setup (once).** PaddlePaddle has no wheels for Python 3.14, so the labelling script has its own
-Python 3.13 environment, `.venv-label`:
+PaddlePaddle has no wheels for Python 3.14, so labelling uses a separate Python 3.13 environment:
 
 ```
 pip install uv
@@ -199,11 +128,11 @@ uv venv --python 3.13 .venv-label
 uv pip install --python .venv-label -r requirements-label.txt
 ```
 
-On Windows use `.venv-label\Scripts\python` wherever this section says `.venv-label/bin/python`.
+(On Windows use `.venv-label\Scripts\python` instead of `.venv-label/bin/python`.)
 
-**GCV key.** In Google Cloud Console, create a project, enable the *Cloud Vision API* (billing must be
-on; the first 1000 images a month are free), and create an API key under *APIs & Services →
-Credentials*. Put it in the environment, never in a file in the repository:
+The Cloud Vision API key is created in Google Cloud Console (*APIs & Services → Credentials*, with the
+Cloud Vision API enabled; the first 1000 images a month are free). It is passed through an environment
+variable and never saved in the repository:
 
 ```
 export GCV_API_KEY=...         (Linux)
@@ -211,180 +140,174 @@ set GCV_API_KEY=...            (cmd)
 $env:GCV_API_KEY = "..."       (PowerShell)
 ```
 
-A service-account JSON file in `GOOGLE_APPLICATION_CREDENTIALS` works as well.
-
-**Run.**
-
 ```
 .venv-label/bin/python src/autolabel.py
-.venv-label/bin/python src/autolabel.py --limit 5     a quick test on five photos
+.venv-label/bin/python src/autolabel.py --limit 5      (quick test on five photos)
 ```
 
-For each photo it keeps the Kannada words found by GCV and the English words found by PaddleOCR.
-PaddleOCR words that lie on a Kannada word are dropped, because the English model reads Kannada as junk.
-Every word is cropped with a small margin into `data/crops/`, and the candidates are listed in
-`data/crops/auto_labels.tsv`. For Kannada words, GCV's per-letter boxes are grouped into aksharas and
-offered as draft `char` boxes. The raw OCR output is cached in `data/ocr_cache/`, so a rerun costs
-nothing and sends nothing. The train/test split by photo is fixed here, with the config seed, before
-anyone looks at the labels. Once a review has started, `autolabel.py` refuses to run again unless you
-pass `--force`, because new crops would not match the decisions already made.
-
-**Review.**
+`autolabel.py` keeps the Kannada words from Cloud Vision and the English words from PaddleOCR. PaddleOCR
+words that overlap a Kannada word are dropped, since PaddleOCR reads Kannada as random letters. Each
+word is cropped with a small margin into `data/crops/`, and the candidates are written to
+`data/crops/auto_labels.tsv`. For Kannada, Cloud Vision's letter boxes are grouped into aksharas as
+draft character boxes. The OCR output is cached in `data/ocr_cache/`, so running it again does not call
+the APIs again. The train/test split by photo is fixed at this point using the config seed. Once the
+review has started, the script will not run again without `--force`.
 
 ```
 python app/review_labels.py          (or Tools → Review automatic labels in the app)
 ```
 
-The window shows the photo with the word marked, the crop enlarged, and the OCR text in an edit box.
-Below the box, Kannada text is also drawn with Pillow, because Tk cannot shape Kannada conjuncts on
-every system. That drawing shows how the label will actually look.
+The review window shows the photo with the word marked, the enlarged crop and the OCR text in an edit
+box. Kannada text is also drawn with Pillow below the box, because Tk does not shape Kannada conjuncts
+correctly on every system.
 
 | Key | Action |
 |---|---|
-| Enter | accept the word as typed, then go to the next one |
-| Ctrl+D | delete the crop (not a word, cut off, unreadable, wrong language) |
+| Enter | accept the word and go to the next one |
+| Ctrl+D | delete the crop (not a word, cut off, unreadable) |
 | PgUp / PgDn | previous / next word |
 | Ctrl+U | next unchecked word |
-| Ctrl+G / Ctrl+R | grow the crop when a letter is cut off / reset it |
-| drag, right-click on the crop | draw / remove a `char` box |
-| Ctrl+B | mark the `char` boxes as checked |
-| Ctrl+X | clear the `char` boxes |
+| Ctrl+G / Ctrl+R | grow the crop if a letter is cut off / reset it |
+| drag / right-click on the crop | draw / remove a character box |
+| Ctrl+B | mark the character boxes as checked |
+| Ctrl+X | clear the character boxes |
 
-Every decision is saved straight away to `data/crops/review.json`, and `labels.tsv` is rewritten with
-the accepted words only. You can close the window and carry on later. The script follows from the text
-(any Kannada letter means Kannada), and English letters outside `a–z 0–9 &` get a warning. `char` boxes
-reach `labels.tsv` only for words marked as checked, and only when their count equals the number of
-units in the word. In the report, say that the labels were initialised with GCV and PaddleOCR and that
-every word was then checked and corrected by hand.
+Decisions are saved immediately to `data/crops/review.json`, and `labels.tsv` is rewritten with only the
+accepted words. Character boxes are kept only for words marked as checked, and only when the number of
+boxes equals the number of units in the word. Test-split words are shown first.
 
-OCR systems miss some words. That does not matter here, because the aim is a few hundred correct
-words, not every word on every sign.
-
-### Your photos and Label Studio
-
-This is the fully manual alternative to the automatic labelling above. The photos stay in
-`data/photos/`, with the same file names as uploaded to Label Studio. The annotations must provide:
-
-- one bounding box per word, with its script (`kannada` or `english`) and transcription;
-- for a subset of about 50 words per script, one box per letter or akshara, used to check
-  segmentation against the ground truth.
-
-`src/make_crops.py` reads the Label Studio JSON export (`data/labelstudio.json`). Both routes produce
-`data/crops/*.png` and `data/crops/labels.tsv` with the columns
-`path, text, script, photo_id, n_units, split, char_boxes`. The data is split 70/30 by photo using the
-configured seed, and the test split is never used for training or tuning.
+`src/make_crops.py` can also read a Label Studio JSON export (`data/labelstudio.json`) if the photos are
+labelled fully by hand instead. Both ways produce `data/crops/*.png` and `data/crops/labels.tsv` with the
+columns `path, text, script, photo_id, n_units, split, char_boxes`. The test split is never used for
+training or tuning.
 
 ### Public datasets
 
-| Dataset | Purpose | Location | Status |
-|---|---|---|---|
-| IIIT-Synthetic-IndicSTR-Kannada | CRNN pre-training, charset vocabulary | Colab only; locally, only `vocabulary.txt` in `data/public/kannada_synth/` | Done |
-| IndicSTR12, Kannada subset | Kannada public test set | extract `test.zip` inside `data/public/indicstr12_kannada/`, producing `test/images/` and `test/test_gt.txt` | To be done |
-| MJSynth (90kDICT32px) | English CRNN pre-training | Colab only, streamed | To be done |
-| IIIT5K | English public test set | `data/public/IIIT5K/` with `test/` and `testdata.mat` | To be done |
-| Chars74K English | additional characters for A–C (optional) | `data/public/chars74k/English/Img/GoodImg/Bmp/Sample001 ...` | Optional |
-| Chars74K Kannada | additional characters for A–C (optional) | `data/public/chars74k/Kannada/Img/GoodImg/Bmp/...` plus `kannada_classes.tsv` | Optional |
+| Dataset | Used for | Location |
+|---|---|---|
+| IIIT-Synthetic-IndicSTR-Kannada | CRNN pre-training, charset vocabulary | Colab; locally only `data/public/kannada_synth/vocabulary.txt` |
+| IndicSTR12, Kannada | Kannada test set | `data/public/indicstr12_kannada/test/images/` and `test/test_gt.txt` |
+| MJSynth (90kDICT32px) | English CRNN pre-training | Colab, streamed |
+| IIIT5K | English test set | `data/public/IIIT5K/` with `test/` and `testdata.mat` |
+| Chars74K English | extra real letters for A–C | `data/public/chars74k/English/Img/GoodImg/Bmp/` |
+| Chars74K Kannada (optional) | extra letters for A–C | `data/public/chars74k/Kannada/...` and `kannada_classes.tsv` |
 
-The Kannada ground-truth files are read as `image_name<TAB>text`, one line per image. If a Chars74K
-directory or the Kannada class map is missing, that dataset is skipped with a message.
-`kannada_classes.tsv` contains one line per folder, for example `Sample001<TAB>ಅ`. Chars74K has no
-official split, so a fixed shuffle is divided 70/30 using the configured seed.
+The Kannada ground-truth files have one `image_name<TAB>text` line per image. Missing datasets are
+skipped with a message. Chars74K has no official split, so it is shuffled and split 70/30 with the
+config seed.
 
-`python src/datasets.py <name> [--split test] [--limit N]` loads any dataset and prints sample entries
-and the shape of one batch. Available names: `crops`, `kannada_synth`, `indicstr12_kannada`,
-`mjsynth`, `iiit5k`, `chars74k_english` and `chars74k_kannada`.
+`python src/datasets.py <name> [--split test] [--limit N]` prints a few samples from any dataset
+(`crops`, `kannada_synth`, `indicstr12_kannada`, `mjsynth`, `iiit5k`, `chars74k_english`,
+`chars74k_kannada`).
 
-### Handling the large datasets on Colab
-
-Google Drive does not have enough space for the full Kannada synthetic set or MJSynth.
-`notebooks/train_crnn.ipynb` downloads and extracts them only on the Colab disk (`/content`), then
-archives a random subset of `SUBSET` words (200,000 by default) to Drive as
-`data/public/<set>_subset.zip`. Later sessions extract this archive directly, and training always reads
-from `/content`.
-
-- **Kannada synthetic set.** The link and paths are preconfigured in the notebook. The 4.6 GB archive
-  is downloaded with `wget -c`, which displays progress and can resume within the same Colab session.
-  Only `train/train_gt.txt` and `train/vocabulary.txt` are extracted from it. `src/subset_words.py --zip`
-  then selects `SUBSET` random words and extracts only their images, so the 2 million images are never
-  fully unpacked.
-- **MJSynth.** `src/mjsynth_subset.py` streams the `.tar.gz` and stops after `SUBSET` readable images,
-  then reports the number of unique words retained. A very low count indicates that the archive is
-  ordered by word; in that case, delete the archive and add `--every 45` to the command in that cell so
-  that every 45th image is kept. The download link is available at
-  https://www.robots.ox.ac.uk/~vgg/data/text/.
+Google Drive does not have space for the full Kannada synthetic set or MJSynth, so
+`notebooks/train_crnn.ipynb` downloads them only to the Colab disk and saves a random subset of
+`SUBSET` words to Drive. For Kannada, `src/subset_words.py --zip` extracts only the chosen images from the
+4.6 GB archive. For MJSynth, `src/mjsynth_subset.py` streams the `.tar.gz`, stops after `SUBSET` images
+and can resume a broken download. The MJSynth link is on https://www.robots.ox.ac.uk/~vgg/data/text/.
 
 ### Kannada charset
 
-`python src/build_charset.py` counts aksharas in `vocabulary.txt` and in the **train** split of
-`labels.tsv` (once it exists), counting each vocabulary word once. It keeps the most frequent aksharas
-that together cover `charset_coverage` (0.99) of all occurrences, writes them to
-`charsets/kannada.txt`, and reports those excluded. For models A–C, any akshara outside the charset is
-mapped to the class `<rare>`. The CRNN uses a separate alphabet: the script also writes every Kannada
-code point found to `charsets/kannada_alphabet.txt`, regardless of coverage. The English charset
-consists of `a–z`, `0–9` and `&`, and the English CRNN uses the same file.
-
-The current charset was built from the vocabulary alone, since no annotated labels exist yet.
+`python src/build_charset.py` counts aksharas in `vocabulary.txt` and in the training split of
+`labels.tsv`. It keeps the most frequent aksharas that together cover 99% of all occurrences and writes
+them to `charsets/kannada.txt`. For models A–C, any akshara outside this list becomes the class
+`<rare>`. The CRNN uses every Kannada code point instead (`charsets/kannada_alphabet.txt`). The English
+charset is `a–z`, `0–9` and `&`.
 
 ## Training
 
-### Models A and B: HOG + SVM and HOG + Random Forest (local)
+**A and B.** Kannada characters are rendered on Colab with `notebooks/render_chars.ipynb`, because
+Kannada rendering needs Pillow with RAQM. Free fonts are used (Noto Sans/Serif Kannada, Lohit Kannada,
+DejaVu, Liberation) with small rotation, blur, noise and scaling. `python src/classical.py --script
+<english|kannada>` trains both models on HOG features of 32×32 characters, with at most
+`char_per_class` samples per class and 10% held out for validation. The forest has 50 trees and at
+least 5 samples per leaf; even then the Kannada forest needs about 1.6 GB of RAM.
 
-Kannada rendering requires Pillow's RAQM layout engine, which is usually unavailable in Pillow on
-Windows. The training characters are therefore rendered in Colab with `notebooks/render_chars.ipynb`,
-using free fonts (Noto Sans/Serif Kannada, Lohit Kannada, Noto, DejaVu, Liberation). Light rotation,
-blur, noise and scaling are applied, and English characters are rendered in both cases.
+**C.** Trained on exactly the same characters as A and B (checked with the fingerprint), using Adam and
+early stopping.
 
-`python src/classical.py --script <english|kannada>` trains both models on HOG features of 32×32
-crops. It uses at most `char_per_class` samples per class (250 for English, which has Chars74K's
-real-photo letters as well, and 30 for Kannada) and holds out 10% for the reported
-validation accuracy. It saves `models/svm_<script>.joblib` and `models/rf_<script>.joblib` and reports
-their disk size and approximate memory usage. The forest uses 50 trees with a minimum of 5 samples per
-leaf, since scikit-learn stores one value per class in every node. Even with these limits, the Kannada
-forest requires approximately 2 GB of RAM.
-
-### Models C and D: CNN and CRNN (Colab, T4 GPU)
-
-`SCRIPT` is set in the second cell of each notebook. Both notebooks import from `src/`, copy their
-inputs to `/content`, fix the random seed, use Adam with early stopping on validation loss, and report
-the training time. The resulting `.pth` and `.json` files are downloaded into `models/`; the
-application and evaluation run them on the CPU.
-
-- **`train_cnn.ipynb`** trains model C on the same characters as A and B, verified by the fingerprint.
-  `src/train_cnn.py` runs the same steps on the laptop CPU, which is enough for English (37 classes).
-- **`train_crnn.ipynb`** trains model D in two stages. It first pre-trains on the public subset,
-  holding out 5% for validation, then fine-tunes on the train split of the annotated crops, holding out
-  15% of those photos for validation. The network reduces the width by a factor of 4, so each word
-  yields `width / 4` output frames. Since CTC cannot learn from words with more code points than frames,
-  the notebook counts such words beforehand.
+**D.** Trained in two stages: pre-training on the public synthetic words (5% held out), then
+fine-tuning on the training split of my crops (15% of those photos held out). The network reduces the
+width by 4, so a word gives `width / 4` output frames; CTC cannot learn words longer than that, so these
+are counted before training. English pre-training was done on Colab (190,000 MJSynth words, 14 epochs,
+about 1 hour 50 minutes). On the laptop CPU one epoch of 60,000 words takes about 45 minutes, which is
+too slow.
 
 ## Evaluation
 
-*Status: to be done.* The evaluation pipeline is implemented but has not been run, as it requires the
-annotated test split and the public test sets. The `results/` directory is currently empty.
+The final evaluation was run on 21 November 2026. The outputs are in `results/`: `results.csv` (all
+metrics with 95% bootstrap confidence intervals), `errors.csv` (400 sample errors), charts and confusion
+matrices.
+
+### Results (no preprocessing)
+
+CER is counted over aksharas for Kannada and letters for English. It can go above 100% when a model
+outputs more units than the word has. The ranges in brackets are 95% confidence intervals.
+
+| Model | Kannada, own photos (114 words) | Kannada, IndicSTR12 (270) | English, own photos (130) | English, IIIT5K (3,000) |
+|---|---|---|---|---|
+| A: HOG + SVM | CER 128% [119–138], exact 0.0% | CER 118% [113–123], exact 0.0% | CER 85% [79–91], exact 8.5% | CER 57% [55–60], exact 19.5% |
+| B: HOG + Random Forest | CER 135% [125–146], exact 0.0% | CER 121% [116–126], exact 0.4% | CER 84% [79–90], exact 6.9% | CER 61% [60–64], exact 15.5% |
+| C: CNN | CER 140% [130–150], exact 0.0% | CER 129% [124–134], exact 0.4% | CER 85% [79–91], exact 6.9% | CER 56% [54–58], exact 21.2% |
+| D: CRNN | CER 37% [30–43], exact 36.8% | CER 33% [29–37], exact 41.5% | CER 51% [42–59], exact 25.4% | CER 10% [9–11], exact 71.5% |
+
+### Segmentation (A–C)
+
+| | Kannada, own | Kannada, IndicSTR12 | English, own | English, IIIT5K |
+|---|---|---|---|---|
+| Correct number of segments | 23.7% | 26.7% | 30.8% | 48.0% |
+| Correct number and IoU ≥ 0.5 for every box | 7.6% (105 words) | – | 16.1% (93 words) | – |
+| Character accuracy on correctly segmented words (A / B / C) | 4.6 / 4.6 / 1.5% | 13.7 / 9.7 / 3.5% | 54.3 / 47.0 / 55.0% | 70.6 / 65.1 / 73.3% |
+
+### Speed and size (CPU)
+
+| Model | Time per word | Size (Kannada) | Size (English) |
+|---|---|---|---|
+| A: SVM | 2.7 s Kannada, 10–12 ms English | 246 MB | 10.6 MB |
+| B: Random Forest | 15 ms | 27.9 MB (about 1.6 GB in RAM) | 2.2 MB |
+| C: CNN | 2–4 ms | 7.4 MB | 0.7 MB |
+| D: CRNN | 9–14 ms | 32.9 MB | 32.9 MB |
+
+### Observations
+
+1. The CRNN (D) is the most accurate model on all four test sets. Its CER is two to six times lower
+   than A–C and the confidence intervals do not overlap.
+2. Segmentation is the main weakness of A–C. Only about a quarter of Kannada words and a third of
+   English sign words are cut into the right number of pieces, and even fewer match the true boxes.
+   Kannada is harder because vowel signs and conjuncts are attached to or float near the consonant.
+3. Even when a Kannada word is segmented correctly, A–C get only 2–14% of the characters right, since
+   they were trained only on rendered font characters. For English, where Chars74K photo letters were
+   also used, they get 47–73% right.
+4. Preprocessing does not help. None of the settings improves on no preprocessing, and CLAHE makes every
+   model worse (for example D on IIIT5K drops from 71.5% to 59.7% exact).
+5. My own sign photos are harder than IIIT5K for English (D: 25% vs 72% exact) because of stylised
+   fonts, low resolution and only 159 fine-tuning words.
+6. Tuning the segmenter settings on the training split only raised the correct-segment rate from 31% to
+   35% (English) and from 24% to 32% (Kannada), so the gap to the CRNN is not just a tuning problem.
+7. The Kannada SVM is too slow for interactive use (2.7 s per word, 246 MB), because one-vs-one
+   classification over 859 classes compares about 370,000 class pairs.
+
+### Running the evaluation
 
 ```
 python src/evaluate.py
 python src/evaluate.py --scripts kannada --models A B --limit 500
 ```
 
-`src/evaluate.py` runs every model found in `models/` on the photo test split, on IndicSTR12 (Kannada)
-and on IIIT5K (English). Each model is evaluated without preprocessing, then with CLAHE, sharpening and
-deskew applied individually. Missing models or test sets are skipped with a message.
+`src/evaluate.py` runs every model in `models/` on the photo test split, IndicSTR12 (Kannada) and IIIT5K
+(English), once without preprocessing and once each with CLAHE, sharpening and deskew. It reports:
 
-Planned metrics:
+- segmentation success for A–C (correct segment count, and the stricter IoU ≥ 0.5 version on the boxed
+  words);
+- character accuracy for A–C on correctly segmented words;
+- CER, WER and exact match for all models;
+- 95% bootstrap confidence intervals, resampled by photo;
+- the share of `<rare>` units in each test set;
+- time per word, model size and training time.
 
-- **Segmentation success** (A–C): proportion of words whose segment count matches the number of units,
-  plus a stricter variant requiring IoU ≥ 0.5 per segment on the boxed subset.
-- **Character accuracy** (A–C), measured on correctly segmented words.
-- **CER, WER and exact match** for all models. CER is computed over aksharas for Kannada and letters
-  for English.
-- **95% bootstrap confidence intervals** for each metric.
-- **Share of `<rare>` units** in each test set.
-- **Efficiency:** recognition time per word on the CPU, model size and training time.
-
-The pipeline will also produce an error sample for manual categorisation (segmentation failure,
-confusable characters, dropped vowel sign, split/merged akshara, stylised font), per-script comparison
-charts and confusion matrices for A–C.
+It also saves a sample of errors for manual sorting (segmentation failure, confusable characters,
+dropped vowel sign, split/merged akshara, stylised font), comparison charts and confusion matrices for
+A–C.
 
 ## Application
 
@@ -392,39 +315,32 @@ charts and confusion matrices for A–C.
 python app/app.py
 ```
 
-The desktop application is implemented and runs with the models currently available.
+- *File → Open image* opens a photo. Ctrl + mouse wheel zooms and *Zoom to fit* resets the view.
+- Drag a rectangle around a word to select it. *Tools → Suggest boxes (MSER)* shows dashed candidate
+  boxes that can be clicked, but it often misses words.
+- Choose the model (A, B, C, D or All), the script and any preprocessing, then click *Run*. Each model
+  adds a row with its text, confidence and time.
+- The preview shows the segments that A–C classified.
+- *File → Export results to CSV* saves the session's results.
+- *Tools → Review automatic labels* opens the label review tool.
 
-- **Open a photo** via *File → Open image*. Ctrl + mouse wheel zooms, and *Zoom to fit* resets the
-  view.
-- **Select a word** by dragging a rectangle around it. *Tools → Suggest boxes (MSER)* displays dashed
-  candidate boxes that can be clicked to select. This is an aid only and frequently misses words.
-- **Run** recognition after choosing a model (A, B, C, D or All), the script and any preprocessing.
-  Each model adds a row showing its output text, confidence and recognition time.
-- **The preview** shows the segments classified by models A–C.
-- **Export** the session's results via *File → Export results to CSV*.
-- **Check labels** via *Tools → Review automatic labels*, which opens the review tool described under
-  [Automatic labelling](#automatic-labelling-gcv--paddleocr).
-
-Models are loaded from `models/` on first use. Unavailable models are greyed out and named in the
-status bar. Model D for English is not yet available, and model D for Kannada currently uses the
-pre-trained model. Selecting the Kannada Random Forest displays a notice that it requires approximately
-2 GB of RAM. Confidence values are computed differently for each model and should only be compared
-within the same model.
+Models are loaded from `models/` when first used; missing ones are greyed out. The Kannada Random
+Forest needs about 1.6 GB of RAM. Confidence values are calculated differently for each model, so they
+should only be compared within the same model.
 
 ## Project Structure
 
 ```
-config.yaml            settings: paths, image height, charsets, seeds, segmenter, training
+config.yaml            settings: paths, image height, charsets, seed, segmenter, training
 charsets/              english.txt, kannada.txt, kannada_alphabet.txt
-data/                  photos/, ocr_cache/, crops/, public/, rendered/ (labelstudio.json if used)
+data/                  photos/, ocr_cache/, crops/, public/, rendered/
 src/                   akshara, preprocess, autolabel, make_crops, datasets, build_charset, render_chars,
-                       mjsynth_subset, subset_words, segment, classical, train_cnn, train_crnn, models, metrics,
-                       evaluate, plots
+                       mjsynth_subset, subset_words, segment, classical, train_cnn, train_crnn, models,
+                       metrics, evaluate, plots
 notebooks/             render_chars, train_cnn, train_crnn (Colab)
-app/app.py             Tkinter application
-app/review_labels.py   Tkinter tool to check the automatic labels
-requirements-label.txt the labelling environment (.venv-label, Python 3.13)
+app/app.py             desktop application (Tkinter)
+app/review_labels.py   label review tool (Tkinter)
+requirements-label.txt packages for the labelling environment (.venv-label, Python 3.13)
 models/                trained .joblib / .pth + .json files
-results/               evaluation outputs (generated by evaluate.py; currently empty)
+results/               evaluation outputs
 ```
-
