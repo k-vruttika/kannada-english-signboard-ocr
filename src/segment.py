@@ -54,7 +54,8 @@ def tight(mask, x0, x1):
 def split_wide(mask, box, max_width, margin):
     x0, y0, x1, y1 = box
     w = x1 - x0
-    lo, hi = int(margin * w), int((1 - margin) * w)
+    # lo >= 1 so the cut never falls on the left edge (that would hand back the same box forever)
+    lo, hi = max(1, int(margin * w)), int((1 - margin) * w)
     if w <= max_width or hi <= lo:
         return [box]
     cols = mask[y0:y1, x0:x1].sum(axis=0)
@@ -62,7 +63,9 @@ def split_wide(mask, box, max_width, margin):
     pieces = []
     for a, b in ((x0, cut), (cut, x1)):
         piece = tight(mask, a, b)
-        if piece is not None:
+        if piece == tuple(box):  # cut did not shrink anything, stop here
+            pieces.append(piece)
+        elif piece is not None:
             pieces += split_wide(mask, piece, max_width, margin)
     return pieces
 
