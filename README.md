@@ -22,8 +22,9 @@ segmentation success rate.
 All four models are trained for both scripts and evaluated. The results are in the
 [Evaluation](#evaluation) section.
 
-- 333 shop-sign photos, split 70/30 by photo.
-- 652 checked word labels: 244 test words (114 Kannada, 130 English) and 408 training words.
+- 333 shop-sign photos, split 70/30 by photo. Two photos turned out to be copies of others (img005 = img150,
+  img006 = img182), so their labels were removed and only one copy of each is used.
+- 649 checked word labels: 244 test words (114 Kannada, 130 English) and 405 training words.
   198 of the test words also have checked character boxes (105 Kannada, 93 English).
 - The labels were first filled in automatically (Google Cloud Vision for Kannada, PaddleOCR for English)
   and then every word was checked and corrected by hand. All results are measured against these
@@ -235,7 +236,7 @@ too slow.
 
 ## Evaluation
 
-The final evaluation was run on 21 November 2026. The outputs are in `results/`: `results.csv` (all
+The final evaluation was run on 24 November 2026. The outputs are in `results/`: `results.csv` (all
 metrics with 95% bootstrap confidence intervals), `errors.csv` (400 sample errors), charts and confusion
 matrices.
 
@@ -249,7 +250,7 @@ outputs more units than the word has. The ranges in brackets are 95% confidence 
 | A: HOG + SVM | CER 128% [119–138], exact 0.0% | CER 118% [113–123], exact 0.0% | CER 85% [79–91], exact 8.5% | CER 57% [55–60], exact 19.5% |
 | B: HOG + Random Forest | CER 135% [125–146], exact 0.0% | CER 121% [116–126], exact 0.4% | CER 84% [79–90], exact 6.9% | CER 61% [60–64], exact 15.5% |
 | C: CNN | CER 140% [130–150], exact 0.0% | CER 129% [124–134], exact 0.4% | CER 85% [79–91], exact 6.9% | CER 56% [54–58], exact 21.2% |
-| D: CRNN | CER 37% [30–43], exact 36.8% | CER 33% [29–37], exact 41.5% | CER 51% [42–59], exact 25.4% | CER 10% [9–11], exact 71.5% |
+| D: CRNN | CER 37% [30–44], exact 39.5% | CER 32% [27–36], exact 41.9% | CER 52% [43–60], exact 23.1% | CER 10% [10–11], exact 70.5% |
 
 ### Segmentation (A–C)
 
@@ -266,11 +267,11 @@ outputs more units than the word has. The ranges in brackets are 95% confidence 
 | A: SVM | 2.7 s Kannada, 10–12 ms English | 246 MB | 10.6 MB |
 | B: Random Forest | 15 ms | 27.9 MB (about 1.6 GB in RAM) | 2.2 MB |
 | C: CNN | 2–4 ms | 7.4 MB | 0.7 MB |
-| D: CRNN | 9–14 ms | 32.9 MB | 32.9 MB |
+| D: CRNN | 9–12 ms | 32.9 MB | 32.9 MB |
 
 ### Observations
 
-1. The CRNN (D) is the most accurate model on all four test sets. Its CER is two to six times lower
+1. The CRNN (D) is the most accurate model on all four test sets. Its CER is 1.6 to 5.4 times lower
    than A–C and the confidence intervals do not overlap.
 2. Segmentation is the main weakness of A–C. Only about a quarter of Kannada words and a third of
    English sign words are cut into the right number of pieces, and even fewer match the true boxes.
@@ -279,9 +280,9 @@ outputs more units than the word has. The ranges in brackets are 95% confidence 
    they were trained only on rendered font characters. For English, where Chars74K photo letters were
    also used, they get 47–73% right.
 4. Preprocessing does not help. None of the settings improves on no preprocessing, and CLAHE makes every
-   model worse (for example D on IIIT5K drops from 71.5% to 59.7% exact).
-5. My own sign photos are harder than IIIT5K for English (D: 25% vs 72% exact) because of stylised
-   fonts, low resolution and only 159 fine-tuning words.
+   model worse (for example D on IIIT5K drops from 70.5% to 59.4% exact).
+5. My own sign photos are harder than IIIT5K for English (D: 23% vs 70% exact) because of stylised
+   fonts, low resolution and only 156 fine-tuning words.
 6. Tuning the segmenter settings on the training split only raised the correct-segment rate from 31% to
    35% (English) and from 24% to 32% (Kannada), so the gap to the CRNN is not just a tuning problem.
 7. The Kannada SVM is too slow for interactive use (2.7 s per word, 246 MB), because one-vs-one
