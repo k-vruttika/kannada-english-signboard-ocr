@@ -260,6 +260,19 @@ outputs more units than the word has. The ranges in brackets are 95% confidence 
 | Correct number and IoU ≥ 0.5 for every box | 7.6% (105 words) | – | 16.1% (93 words) | – |
 | Character accuracy on correctly segmented words (A / B / C) | 4.6 / 4.6 / 1.5% | 13.7 / 9.7 / 3.5% | 54.3 / 47.0 / 55.0% | 70.6 / 65.1 / 73.3% |
 
+### Effect of preprocessing (CER %, lower is better)
+
+| Test set | Model | None | CLAHE | Sharpen | Deskew |
+|---|---|---|---|---|---|
+| Kannada, own photos | A / B / C | 128 / 135 / 140 | 120 / 126 / 132 | 127 / 133 / 138 | 143 / 148 / 154 |
+| | D | **37** | 40 | 37 | 43 |
+| Kannada, IndicSTR12 | A / B / C | 118 / 121 / 129 | 118 / 122 / 127 | 117 / 121 / 128 | 116 / 120 / 129 |
+| | D | **32** | 36 | 34 | 34 |
+| English, own photos | A / B / C | 85 / 84 / 85 | 92 / 90 / 91 | 86 / 85 / 85 | 87 / 85 / 86 |
+| | D | **52** | 56 | 52 | 56 |
+| English, IIIT5K | A / B / C | 57 / 61 / 56 | 69 / 73 / 67 | 59 / 63 / 57 | 58 / 61 / 56 |
+| | D | **10** | 16 | 11 | 12 |
+
 ### Speed and size (CPU)
 
 | Model | Time per word | Size (Kannada) | Size (English) |
@@ -279,8 +292,10 @@ outputs more units than the word has. The ranges in brackets are 95% confidence 
 3. Even when a Kannada word is segmented correctly, A–C get only 2–14% of the characters right, since
    they were trained only on rendered font characters. For English, where Chars74K photo letters were
    also used, they get 47–73% right.
-4. Preprocessing does not help. None of the settings improves on no preprocessing, and CLAHE makes every
-   model worse (for example D on IIIT5K drops from 70.5% to 59.4% exact).
+4. Preprocessing does not help the best model. For D, no preprocessing is best on every test set, and CLAHE
+   hurts most (on IIIT5K exact match drops from 70.5% to 59.4%). Sharpening changes almost nothing and
+   deskew makes things slightly worse. The only gain is CLAHE for A–C on my Kannada photos (CER about
+   8 points lower), but their CER stays above 100%, so they still read almost no word correctly.
 5. My own sign photos are harder than IIIT5K for English (D: 23% vs 70% exact) because of stylised
    fonts, low resolution and only 156 fine-tuning words.
 6. Tuning the segmenter settings on the training split only raised the correct-segment rate from 31% to
