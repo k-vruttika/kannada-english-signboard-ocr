@@ -340,6 +340,7 @@ src/                   akshara, preprocess, autolabel, make_crops, datasets, bui
 notebooks/             render_chars, train_cnn, train_crnn (Colab)
 app/app.py             desktop application (Tkinter)
 app/review_labels.py   label review tool (Tkinter)
+app/sort_errors.py     tool to sort the sample errors into categories
 requirements-label.txt packages for the labelling environment (.venv-label, Python 3.13)
 models/                trained .joblib / .pth + .json files
 results/               evaluation outputs
