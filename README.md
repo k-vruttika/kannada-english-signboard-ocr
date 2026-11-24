@@ -210,7 +210,7 @@ and can resume a broken download. The MJSynth link is on https://www.robots.ox.a
 ### Kannada charset
 
 `python src/build_charset.py` counts aksharas in `vocabulary.txt` and in the training split of
-`labels.tsv`. It keeps the most frequent aksharas that together cover 99% of all occurrences and writes
+`labels.tsv`. It keeps the most frequent aksharas that together cover 97% of all occurrences and writes
 them to `charsets/kannada.txt`. For models A–C, any akshara outside this list becomes the class
 `<rare>`. The CRNN uses every Kannada code point instead (`charsets/kannada_alphabet.txt`). The English
 charset is `a–z`, `0–9` and `&`.
